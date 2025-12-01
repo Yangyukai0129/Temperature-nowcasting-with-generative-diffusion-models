@@ -48,7 +48,7 @@ def compute_stats_for_folder(file_list, max_samples=3000):
 
 if __name__ == "__main__":
     # [修正] 路徑要跟 preprocess_data.py 一致
-    DATA_DIR = "data/npy_files" 
+    DATA_DIR = "data/8day_3day" 
     STATS_PATH = "data/data_stats.pt"
     # [修正] 必須跟 Training 設定的切分日期一致 (只用訓練集算統計)
     SPLIT_DATE = "20200101" 

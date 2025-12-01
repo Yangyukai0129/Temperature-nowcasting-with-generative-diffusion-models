@@ -10,18 +10,18 @@ from tqdm import tqdm
 def load_and_merge_datasets(file_var_pairs):
     """
     讀取多個 NetCDF 檔案，取共同時間，對齊後合併成 Dataset
-    避免 xr.merge() 卡死，直接手動組合變數
     """
     datasets = []
     time_arrays = []
 
-    # 讀檔 & 收集時間
+    # 1. 讀檔 & 收集時間
     for file_path, var_list in file_var_pairs:
+        # chunks 可以優化讀取速度
         ds = xr.open_dataset(file_path, chunks={"valid_time": 1000})
         datasets.append(ds[var_list])
         time_arrays.append(np.array(ds['valid_time'].values, dtype='datetime64[ns]'))
 
-    # 取共同時間
+    # 2. 取共同時間
     common_times = time_arrays[0]
     for arr in time_arrays[1:]:
         common_times = np.intersect1d(common_times, arr)
@@ -29,17 +29,22 @@ def load_and_merge_datasets(file_var_pairs):
 
     print(f"✅ 共同時間點數量: {len(common_times)}")
 
-    # 對齊時間 & 載入
+    # 3. 對齊時間 & 載入
     for i in tqdm(range(len(datasets)), desc="對齊時間並載入記憶體"):
         datasets[i] = datasets[i].sel(valid_time=common_times).load()
+        # 注意：這裡 drop=True 會丟棄時間資訊，但我們已經把 common_times 存下來了
         datasets[i] = datasets[i].reset_coords(drop=True)
         datasets[i].attrs = {}
 
-    # 合併變數
+    # 4. 合併變數
     merged_ds = xr.Dataset()
     for i, (_, var_list) in enumerate(file_var_pairs):
         for var in var_list:
             merged_ds[var] = datasets[i][var]
+
+    # [關鍵修正]：手動把時間座標加回去！
+    # 這樣 ds['valid_time'] 才會是真正的日期，而不是整數索引
+    merged_ds = merged_ds.assign_coords(valid_time=common_times)
 
     return merged_ds
 
@@ -134,7 +139,7 @@ class LazyWeatherDataset(torch.utils.data.Dataset):
 # =========================================================
 if __name__ == "__main__":
     file_var_pairs = [
-        ("download_nc/CVPR.nc", ["t"]),
+        ("../diffusion/download_nc/CVPR.nc", ["t"]),
     ]
 
     cond_steps = 64

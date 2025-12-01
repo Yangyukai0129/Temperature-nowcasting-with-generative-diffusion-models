@@ -72,7 +72,7 @@ def main():
         print("⚠️ Warning: Stats not found!")
 
     # === 載入資料 ===
-    DATA_DIR = "data/npy_files"
+    DATA_DIR = "data/8day_3day"
     
     if os.path.exists(DATA_DIR):
         # 呼叫 dataset.py 裡的函式
@@ -94,7 +94,16 @@ def main():
         return
 
     # === DataLoader ===
-    train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, num_workers=NUM_WORKERS, pin_memory=True)
+    # 檢查是否使用 GPU
+    use_cuda = torch.cuda.is_available()
+
+    train_loader = DataLoader(
+        train_dataset, 
+        batch_size=BATCH_SIZE, 
+        shuffle=True, 
+        num_workers=NUM_WORKERS, 
+        pin_memory=use_cuda  # 只有在有 GPU 時才開啟 pin_memory
+    )
 
     # === 模型建立 ===
     sample_cond, sample_target = next(iter(train_loader))

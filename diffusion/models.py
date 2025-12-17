@@ -5,12 +5,12 @@ import math
 
 def sinusoidal_embedding(t, dim, device):
     half_dim = dim // 2
+    # 這裡的 10000 是標準 Transformer/DDPM 設定
     emb = math.log(10000) / (half_dim - 1)
     emb = torch.exp(torch.arange(half_dim, device=device) * -emb)
-    emb = t[:, None].float() * emb[None, :]
+    # 確保 t 是 [Batch, 1] 的整數
+    emb = t[:, None].float() * emb[None, :] 
     emb = torch.cat((emb.sin(), emb.cos()), dim=-1)
-    if dim % 2 == 1:
-        emb = F.pad(emb, (0, 1, 0, 0))
     return emb
 
 class ResidualBlock(nn.Module):
@@ -86,7 +86,8 @@ class UNet(nn.Module):
         # Encoder
         self.init_conv_channels = 64
         self.down = nn.Conv2d(in_channels + cond_channels, self.init_conv_channels, kernel_size=3, padding=1)
-        current_channels = self.init_conv_channels + 32
+        current_channels = self.init_conv_channels + 32 # 64 + 32 = 96
+        self.down1 = DownBlock(current_channels, 64, use_pool=False)
         self.time = ResidualBlock(32, 32)
         self.down1 = DownBlock(current_channels, 64, use_pool=False)  # 第一層通常不下採樣，這裡保留你原本的邏輯
         self.down2 = DownBlock(64, 128)
@@ -100,6 +101,7 @@ class UNet(nn.Module):
         self.up1 = UpBlock(384, 384, 384, 256)
         self.up2 = UpBlock(256, 256, 256, 128)
         self.up3 = UpBlock(128, 128, 128, 64)
+        self.up4 = UpBlock(64, 64, 64, 64)     # 新增：對應 down1
 
         self.final_conv = nn.Conv2d(64, out_channels, kernel_size=3, padding=1)
 
@@ -129,8 +131,9 @@ class UNet(nn.Module):
         u1 = self.up1(bottleneck, skip7, skip8)
         u2 = self.up2(u1, skip5, skip6)
         u3 = self.up3(u2, skip3, skip4)
+        u4 = self.up4(u3, skip1, skip2) # 補上最外層的跳躍連接
 
-        output = self.final_conv(u3)
+        output = self.final_conv(u4)
 
         # Align size if needed
         if hasattr(self, 'target_shape') and self.target_shape is not None: 
